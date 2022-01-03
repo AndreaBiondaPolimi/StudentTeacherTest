@@ -34,7 +34,7 @@ def parse_arguments():
 
 def train(args):
     # Choosing device 
-    device = torch.device("cuda:0" if args.gpus else "cpu")
+    device = torch.device("cuda:1" if args.gpus else "cpu")
     print(f'Device used: {device}')
 
     # Resnet pretrained network for knowledge distillation
