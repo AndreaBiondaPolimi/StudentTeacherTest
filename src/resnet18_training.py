@@ -17,7 +17,7 @@ def parse_arguments():
     parser = ArgumentParser()
 
     # program arguments
-    parser.add_argument('--dataset', type=str, default='carpet', help="Dataset to train on (in data folder)")
+    parser.add_argument('--dataset', type=str, default='grid', help="Dataset to train on (in data folder)")
     parser.add_argument('--image_size', type=int, default=256)
 
     # trainer arguments
@@ -52,7 +52,7 @@ def train(args):
                           momentum=args.momentum)
 
     # Load training data
-    dataset = AnomalyDataset(root_dir=f'../data/{args.dataset}/img',
+    dataset = AnomalyDataset(root_dir=f'../data/{args.dataset}',
                              transform=transforms.Compose([
                                 transforms.Resize((args.image_size, args.image_size)),
                                 transforms.RandomHorizontalFlip(),
