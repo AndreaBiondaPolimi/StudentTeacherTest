@@ -168,7 +168,7 @@ class AnomalyNet33(pl.LightningModule):
             return self.fdfe(x)
         else:
             assert x.size(2) == self.pH and x.size(3) == self.pW, \
-                f"This patch extractor only accepts input of size (b, 3, {self.pH}, {self.pW})"
+                f"This patch extractor only accepts input of size (b, 3, {self.pH}, {self.pW}), provided (b, {x.size(1)}, {x.size(2)},{x.size(3)})"
             x = self.l_relu(self.conv1(x))
             x = self.max_pool(x)
             x = self.l_relu(self.conv2(x))
