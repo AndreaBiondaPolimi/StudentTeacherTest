@@ -26,7 +26,7 @@ class AnomalyDataset(Dataset):
         self.gt_transform = gt_transform
         self.img_dir = os.path.join(self.root_dir, 'img')
         self.gt_dir = os.path.join(self.root_dir, 'ground_truth')
-        self.dataset = self.root_dir.split('\\')[-1]
+        self.dataset = self.root_dir.split('/')[-1]
         self.csv_file =  os.path.join(self.root_dir, self.dataset + '.csv')
         self.frame_list = self._get_dataset(self.csv_file, constraint)
     
