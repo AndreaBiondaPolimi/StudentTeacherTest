@@ -19,7 +19,7 @@ def parse_arguments():
 
     # program arguments
     parser.add_argument('--dataset', type=str, default='carpet', help="Dataset to train on (in data folder)")
-    parser.add_argument('--patch_size', type=int, default=65, choices=[17, 33, 65], help="Height and width of patch CNN")
+    parser.add_argument('--patch_size', type=int, default=33, choices=[17, 33, 65], help="Height and width of patch CNN")
     parser.add_argument('--image_size', type=int, default=256)
 
     # trainer arguments
@@ -55,7 +55,7 @@ def compactness_loss(output):
 
 def train(args):
     # Choosing device 
-    device = torch.device("cuda:0" if args.gpus else "cpu")
+    device = torch.device("cuda:1" if args.gpus else "cpu")
     print(f'Device used: {device}')
 
     # Pretrained network for knowledge distillation

@@ -19,7 +19,7 @@ def parse_arguments():
     # program arguments
     parser.add_argument('--dataset', type=str, default='carpet', help="Dataset to train on (in data folder)")
     parser.add_argument('--n_students', type=int, default=3, help="Number of students network to train")
-    parser.add_argument('--patch_size', type=int, default=65, choices=[17, 33, 65], help="Height and width of patch CNN")
+    parser.add_argument('--patch_size', type=int, default=33, choices=[17, 33, 65], help="Height and width of patch CNN")
     parser.add_argument('--image_size', type=int, default=256)
 
     # trainer arguments
@@ -43,7 +43,7 @@ def student_loss(output, target):
 
 def train(args):
     # Choosing device 
-    device = torch.device("cuda:0" if args.gpus else "cpu")
+    device = torch.device("cuda:1" if args.gpus else "cpu")
     print(f'Device used: {device}')
     
     # Teacher network
