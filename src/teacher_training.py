@@ -80,8 +80,9 @@ def train(args):
                            weight_decay=args.weight_decay)
 
     if (args.dataset == 'grid'):
-        tr = transforms.Compose([
+        tr =transforms.Compose([
                                 transforms.Resize((args.image_size, args.image_size)),
+                                transforms.RandomCrop((args.patch_size, args.patch_size)),
                                 transforms.RandomHorizontalFlip(),
                                 transforms.RandomVerticalFlip(),
                                 transforms.RandomRotation(180),
@@ -89,8 +90,9 @@ def train(args):
                                 transforms.ToTensor(),
                                 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
     else:
-         tr = transforms.Compose([
+         tr=transforms.Compose([
                                 transforms.Resize((args.image_size, args.image_size)),
+                                transforms.RandomCrop((args.patch_size, args.patch_size)),
                                 transforms.RandomHorizontalFlip(),
                                 transforms.RandomVerticalFlip(),
                                 transforms.RandomRotation(180),

@@ -68,22 +68,20 @@ def train(args):
                             weight_decay=args.weight_decay) for student in students]
 
     if (args.dataset == 'grid'):
-        tr = transforms.Compose([
+        tr =transforms.Compose([
                                 transforms.Resize((args.image_size, args.image_size)),
                                 transforms.RandomHorizontalFlip(),
                                 transforms.RandomVerticalFlip(),
-                                transforms.RandomRotation(180),
                                 transforms.Grayscale(num_output_channels=3),
                                 transforms.ToTensor(),
-                                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+                                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]), 
     else:
          tr = transforms.Compose([
                                 transforms.Resize((args.image_size, args.image_size)),
                                 transforms.RandomHorizontalFlip(),
                                 transforms.RandomVerticalFlip(),
-                                transforms.RandomRotation(180),
                                 transforms.ToTensor(),
-                                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+                                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]),
 
     # Load anomaly-free training data
     dataset = AnomalyDataset(root_dir=f'../data/{args.dataset}',
