@@ -13,6 +13,8 @@ from sklearn.metrics import roc_curve, auc
 from scipy import integrate 
 from Metrics import get_ovr, visualize_results, preprocess_data, bg_mask, batch_evaluation, get_performance, get_roc, image_evaluation, get_iou
 
+path ='D:\Projects\StudentTeacherTest'
+
 def parse_arguments():
     parser = ArgumentParser()
 
@@ -21,12 +23,12 @@ def parse_arguments():
     parser.add_argument('--test_size', type=int, default=20, help="Number of batch for the test set")
     parser.add_argument('--n_students', type=int, default=3, help="Number of students network to use")
     parser.add_argument('--patch_size', type=int, default=33, choices=[17, 33, 65])
-    parser.add_argument('--image_size', type=int, default=1024)
+    parser.add_argument('--image_size', type=int, default=256)
     parser.add_argument('--visualize', type=bool, default=True, help="Display anomaly map batch per batch")
 
     # trainer arguments
     parser.add_argument('--gpus', type=int, default=(1 if torch.cuda.is_available() else 0))
-    parser.add_argument('--cuda', type=int, default=1)
+    parser.add_argument('--cuda', type=int, default=0)
     parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--num_workers', type=int, default=4)
 
@@ -132,7 +134,7 @@ def detect_anomaly(args):
     teacher.eval().to(device)
 
     # Load teacher model
-    load_model(teacher, f'../model/{args.dataset}/teacher_{args.patch_size}_net.pt')
+    load_model(teacher, path + f'//model//{args.dataset}//teacher_{args.patch_size}_net.pt', args.cuda)
 
     # Students networks
     students = [AnomalyNet.create((args.patch_size, args.patch_size)) for _ in range(args.n_students)]
@@ -140,8 +142,8 @@ def detect_anomaly(args):
 
     # Loading students models
     for i in range(args.n_students):
-        model_name = f'../model/{args.dataset}/student_{args.patch_size}_net_{i}.pt'
-        load_model(students[i], model_name)
+        model_name =path +  f'//model//{args.dataset}//student_{args.patch_size}_net_{i}.pt'
+        load_model(students[i], model_name, args.cuda)
 
     if (args.dataset == 'grid'):
         tr = transforms.Compose([
@@ -157,7 +159,7 @@ def detect_anomaly(args):
 
 
     # calibration on anomaly-free dataset
-    calib_dataset = AnomalyDataset(root_dir=f'../data/{args.dataset}',
+    calib_dataset = AnomalyDataset(root_dir=path + f'//data//{args.dataset}',
                                     transform=tr,
                                     type='train',
                                     label=0)
@@ -168,7 +170,7 @@ def detect_anomaly(args):
                                    num_workers=args.num_workers)
     import os
     import pickle
-    param_file = f'../model/{args.dataset}/params_{args.patch_size}_{args.image_size}'
+    param_file = path + f'//model//{args.dataset}//params_{args.patch_size}_{args.image_size}'
     if (os.path.isfile(param_file)):
         with open(param_file, 'rb') as f:
             params = pickle.load(f)
@@ -192,7 +194,7 @@ def detect_anomaly(args):
 
 
     # Load testing data
-    test_dataset = AnomalyDataset(root_dir=f'../data/{args.dataset}',
+    test_dataset = AnomalyDataset(root_dir=path + f'//data//{args.dataset}',
                                   transform=tr,
                                   gt_transform=transforms.Compose([
                                     transforms.Resize((args.image_size, args.image_size)),
@@ -238,15 +240,14 @@ def detect_anomaly(args):
             res_gt = gt_in[b, :, :].squeeze().numpy()
             res_gt[res_gt > 0] = 1
 
-            print ('max score:', np.max(res_score))
-            #plt.imshow(res_score)
-            #plt.show()
+            plt.imshow(res_score)
+            plt.show()
             #plt.imshow(res_gt)
             #plt.show()
 
-            step = 0.1
+            step = 0.01
             results = []
-            for tresh in np.arange (0, 80, step):
+            for tresh in np.arange (0, 10, step):
                 results.append (compute_performance({'tresh': tresh.copy(), 'residual': res_score.copy(), 'valid_gt': res_gt.copy()}))
                 
 

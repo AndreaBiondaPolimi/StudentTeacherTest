@@ -1,4 +1,5 @@
 data/*
 logs/*
 data_unused/*
+model/*
 *.pyc
