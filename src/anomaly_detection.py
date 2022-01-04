@@ -238,55 +238,56 @@ def detect_anomaly(args):
             res_gt = gt_in[b, :, :].squeeze().numpy()
             res_gt[res_gt > 0] = 1
 
-            print ('max score:', np.max(res_score))
-            #plt.imshow(res_score)
-            #plt.show()
-            #plt.imshow(res_gt)
-            #plt.show()
+            if (np.max(res_gt) > 0):
+                print ('max score:', np.max(res_score))
+                #plt.imshow(res_score)
+                #plt.show()
+                #plt.imshow(res_gt)
+                #plt.show()
 
-            step = 0.1
-            results = []
-            for tresh in np.arange (0, 80, step):
-                results.append (compute_performance({'tresh': tresh.copy(), 'residual': res_score.copy(), 'valid_gt': res_gt.copy()}))
-                
+                step = 0.1
+                results = []
+                for tresh in np.arange (0, 80, step):
+                    results.append (compute_performance({'tresh': tresh.copy(), 'residual': res_score.copy(), 'valid_gt': res_gt.copy()}))
+                    
 
 
-            #Compute roc,auc and iou scores async
-            tprs = []; fprs = []; ious = [] ;ovrs = []
-            """
-            args = [{'tresh': tresh.copy(), 'residual': res_score.copy(), 'valid_gt': res_gt.copy()} for tresh in np.arange (0.1, 0.3, step)] 
-            with Pool(processes=2) as pool:  # multiprocessing.cpu_count()
-                results = pool.map(compute_performance, args, chunksize=1)
-            """
+                #Compute roc,auc and iou scores async
+                tprs = []; fprs = []; ious = [] ;ovrs = []
+                """
+                args = [{'tresh': tresh.copy(), 'residual': res_score.copy(), 'valid_gt': res_gt.copy()} for tresh in np.arange (0.1, 0.3, step)] 
+                with Pool(processes=2) as pool:  # multiprocessing.cpu_count()
+                    results = pool.map(compute_performance, args, chunksize=1)
+                """
 
-            for result in results:
-                tpr = result['tpr']; fpr = result['fpr']; iou = result['iou']; ovr = result['ovr']
-                #print (fpr, tpr, iou, ovr)
-                if (fpr <= 0.3):
-                    #print (tpr, fpr, iou)
-                    tprs.append(tpr); fprs.append(fpr); ious.append(iou); ovrs.append(ovr)
+                for result in results:
+                    tpr = result['tpr']; fpr = result['fpr']; iou = result['iou']; ovr = result['ovr']
+                    #print (fpr, tpr, iou, ovr)
+                    if (fpr <= 0.3):
+                        #print (tpr, fpr, iou)
+                        tprs.append(tpr); fprs.append(fpr); ious.append(iou); ovrs.append(ovr)
 
-            if (len(fprs) > 0):
-                tprs = np.array(tprs); fprs = np.array(fprs); ious = np.array(ious); ovrs = np.array(ovrs)
-                au_roc = (-1 * integrate.trapz(tprs, fprs))/(np.max(fprs)*np.max(tprs))
-                #au_roc = (-1 * integrate.trapz(tprs, fprs))/(np.max(fprs))
-                #au_iou = (-1 * integrate.trapz(ious, fprs))/(np.max(fprs)*np.max(ious))
-                au_iou = (-1 * integrate.trapz(ious, fprs))/(np.max(fprs))
-                au_pro = (-1 * integrate.trapz(ovrs, fprs))/(np.max(fprs)*np.max(ovrs))
-                #au_pro = (-1 * integrate.trapz(ovrs, fprs))/(np.max(fprs))
-            else:
-                au_iou = 0; au_roc=0; au_pro=0
+                if (len(fprs) > 0):
+                    tprs = np.array(tprs); fprs = np.array(fprs); ious = np.array(ious); ovrs = np.array(ovrs)
+                    au_roc = (-1 * integrate.trapz(tprs, fprs))/(np.max(fprs)*np.max(tprs))
+                    #au_roc = (-1 * integrate.trapz(tprs, fprs))/(np.max(fprs))
+                    #au_iou = (-1 * integrate.trapz(ious, fprs))/(np.max(fprs)*np.max(ious))
+                    au_iou = (-1 * integrate.trapz(ious, fprs))/(np.max(fprs))
+                    au_pro = (-1 * integrate.trapz(ovrs, fprs))/(np.max(fprs)*np.max(ovrs))
+                    #au_pro = (-1 * integrate.trapz(ovrs, fprs))/(np.max(fprs))
+                else:
+                    au_iou = 0; au_roc=0; au_pro=0
 
-            print ("COUNT FPR: ", len(fprs))
-            #print ("MAX FPR: ", np.max(fprs))
-            print ("Area under ROC:", au_roc)
-            print ("Area under IOU:", au_iou)  
-            print ("Area under PRO:", au_pro) 
+                print ("COUNT FPR: ", len(fprs))
+                #print ("MAX FPR: ", np.max(fprs))
+                print ("Area under ROC:", au_roc)
+                print ("Area under IOU:", au_iou)  
+                print ("Area under PRO:", au_pro) 
 
-            if (au_roc is not np.NaN and au_iou is not np.NaN and au_pro is not np.NaN):
-                avg_au_roc += au_roc
-                avg_au_iou += au_iou
-                avg_au_pro += au_pro
+                if (au_roc is not np.NaN and au_iou is not np.NaN and au_pro is not np.NaN):
+                    avg_au_roc += au_roc
+                    avg_au_iou += au_iou
+                    avg_au_pro += au_pro
     
     print ("MEAN Area under ROC:", avg_au_roc/(args.test_size))
     print ("MEAN Area under IOU:", avg_au_iou/(args.test_size))
