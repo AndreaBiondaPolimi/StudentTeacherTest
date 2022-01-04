@@ -30,6 +30,9 @@ def parse_arguments():
     parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--num_workers', type=int, default=4)
 
+    parser.add_argument('--threshold_max', type=int, default=80)
+    parser.add_argument('--threshold_stpes', type=int, default=100)
+
     args = parser.parse_args()
     return args
 
@@ -247,7 +250,7 @@ def detect_anomaly(args):
 
                 step = 0.1
                 results = []
-                for tresh in np.arange (0, 80, step):
+                for tresh in np.arange (0, float(args.threshold_max), float(args.threshold_max)/float(args.threshold_stpes)):
                     results.append (compute_performance({'tresh': tresh.copy(), 'residual': res_score.copy(), 'valid_gt': res_gt.copy()}))
                     
 
