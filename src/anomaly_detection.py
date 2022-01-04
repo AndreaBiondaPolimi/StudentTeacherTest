@@ -165,8 +165,16 @@ def detect_anomaly(args):
                                    batch_size=args.batch_size, 
                                    shuffle=False, 
                                    num_workers=args.num_workers)
-    
-    params = calibrate(teacher, students, calib_dataloader, device)
+    import os
+    import pickle
+    param_file = os.path.join('..','model',{args.dataset},f'params_{args.patch_size}_{args.image_size}')
+    if (os.path.isfile(param_file)):
+        with open(param_file, 'rb') as f:
+            params = pickle.load(f)
+    else:
+        params = calibrate(teacher, students, calib_dataloader, device)
+        with open(param_file, 'wb') as f:
+            pickle.dump(params, f)
 
 
     if (args.dataset == 'grid'):
@@ -277,9 +285,9 @@ def detect_anomaly(args):
             avg_au_iou += au_iou
             avg_au_pro += au_pro
     
-    print ("MEAN Area under ROC:", avg_au_roc/len(args.test_size))
-    print ("MEAN Area under IOU:", avg_au_iou/len(args.test_size))
-    print ("MEAN Area under PRO:", avg_au_pro/len(args.test_size))
+    print ("MEAN Area under ROC:", avg_au_roc/(args.test_size))
+    print ("MEAN Area under IOU:", avg_au_iou/(args.test_size))
+    print ("MEAN Area under PRO:", avg_au_pro/(args.test_size))
         
 
 
