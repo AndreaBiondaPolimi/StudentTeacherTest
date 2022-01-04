@@ -142,12 +142,22 @@ def detect_anomaly(args):
         model_name = f'../model/{args.dataset}/student_{args.patch_size}_net_{i}.pt'
         load_model(students[i], model_name)
 
+    if (args.dataset == 'grid'):
+        tr = transforms.Compose([
+                            transforms.Resize((args.image_size, args.image_size)),
+                            transforms.Grayscale(num_output_channels=3),
+                            transforms.ToTensor(),
+                            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+    else:
+         tr = transforms.Compose([
+                            transforms.Resize((args.image_size, args.image_size)),
+                            transforms.ToTensor(),
+                            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+
+
     # calibration on anomaly-free dataset
     calib_dataset = AnomalyDataset(root_dir=f'../data/{args.dataset}',
-                                    transform=transforms.Compose([
-                                        transforms.Resize((args.image_size, args.image_size)),
-                                        transforms.ToTensor(),
-                                        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]),
+                                    transform=tr,
                                     type='train',
                                     label=0)
 
@@ -159,12 +169,22 @@ def detect_anomaly(args):
     params = calibrate(teacher, students, calib_dataloader, device)
 
 
+    if (args.dataset == 'grid'):
+        tr = transforms.Compose([
+                    transforms.Resize((args.image_size, args.image_size)),
+                    transforms.Grayscale(num_output_channels=3),
+                    transforms.ToTensor(),
+                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+    else:
+         tr = transforms.Compose([
+                    transforms.Resize((args.image_size, args.image_size)),
+                    transforms.ToTensor(),
+                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+
+
     # Load testing data
     test_dataset = AnomalyDataset(root_dir=f'../data/{args.dataset}',
-                                  transform=transforms.Compose([
-                                    transforms.Resize((args.image_size, args.image_size)),
-                                    transforms.ToTensor(),
-                                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]),
+                                  transform=tr,
                                   gt_transform=transforms.Compose([
                                     transforms.Resize((args.image_size, args.image_size)),
                                     transforms.ToTensor()]),
