@@ -213,7 +213,7 @@ def detect_anomaly(args):
     y_true = np.array([])
     test_iter = iter(test_dataloader)
 
-    avg_au_roc = 0; avg_au_iou = 0; avg_au_pro = 0
+    avg_au_roc = 0; avg_au_iou = 0; avg_au_pro = 0; count=0
     for i in range(args.test_size):
         batch = next(test_iter)
         inputs = batch['image'].to(device)
@@ -291,10 +291,11 @@ def detect_anomaly(args):
                     avg_au_roc += au_roc
                     avg_au_iou += au_iou
                     avg_au_pro += au_pro
+                    count += 1
     
-    print ("MEAN Area under ROC:", avg_au_roc/(args.test_size))
-    print ("MEAN Area under IOU:", avg_au_iou/(args.test_size))
-    print ("MEAN Area under PRO:", avg_au_pro/(args.test_size))
+    print ("MEAN Area under ROC:", avg_au_roc/count)
+    print ("MEAN Area under IOU:", avg_au_iou/count)
+    print ("MEAN Area under PRO:", avg_au_pro/count)
         
 
 
