@@ -123,7 +123,7 @@ def visualize(img, gt, score_map, max_score):
 
 def detect_anomaly(args):
     # Choosing device 
-    device = torch.device("cuda:0" if args.gpus else "cpu")
+    device = torch.device("cuda:1" if args.gpus else "cpu")
     print(f'Device used: {device}')
 
     # Teacher network
@@ -191,70 +191,71 @@ def detect_anomaly(args):
         y_score = np.concatenate((y_score, rearrange(score_map, 'b h w -> (b h w)').numpy()))
         y_true = np.concatenate((y_true, rearrange(gt, 'b c h w -> (b c h w)').numpy()))
 
-        if args.visualize:
-            unorm = transforms.Normalize((-1, -1, -1), (2, 2, 2)) # get back to original image
-            max_score = (params['students']['err']['max'] - params['students']['err']['mu']) / torch.sqrt(params['students']['err']['var'])\
-                + (params['students']['var']['max'] - params['students']['var']['mu']) / torch.sqrt(params['students']['var']['var']).item()
-            img_in = rearrange(unorm(inputs).cpu(), 'b c h w -> b h w c')
-            gt_in = rearrange(gt, 'b c h w -> b h w c')
+        
+        unorm = transforms.Normalize((-1, -1, -1), (2, 2, 2)) # get back to original image
+        max_score = (params['students']['err']['max'] - params['students']['err']['mu']) / torch.sqrt(params['students']['err']['var'])\
+            + (params['students']['var']['max'] - params['students']['var']['mu']) / torch.sqrt(params['students']['var']['var']).item()
+        img_in = rearrange(unorm(inputs).cpu(), 'b c h w -> b h w c')
+        gt_in = rearrange(gt, 'b c h w -> b h w c')
 
-            for b in range(args.batch_size):
+        for b in range(args.batch_size):
+            if args.visualize:
                 visualize(img_in[b, :, :, :].squeeze(), 
-                          gt_in[b, :, :, :].squeeze(), 
-                          score_map[b, :, :].squeeze(), 
-                          max_score)
+                        gt_in[b, :, :, :].squeeze(), 
+                        score_map[b, :, :].squeeze(), 
+                        max_score)
 
-                res_score = score_map[b, :, :].squeeze().numpy()
-                res_gt = gt_in[b, :, :].squeeze().numpy()
-                res_gt[res_gt > 0] = 1
+            res_score = score_map[b, :, :].squeeze().numpy()
+            res_gt = gt_in[b, :, :].squeeze().numpy()
+            res_gt[res_gt > 0] = 1
 
-                #plt.imshow(res_score)
-                #plt.show()
-                #plt.imshow(res_gt)
-                #plt.show()
+            #plt.imshow(res_score)
+            #plt.show()
+            #plt.imshow(res_gt)
+            #plt.show()
 
-                step = 0.1
-                results = []
-                for tresh in np.arange (0, 80, step):
-                    results.append (compute_performance({'tresh': tresh.copy(), 'residual': res_score.copy(), 'valid_gt': res_gt.copy()}))
-                    
+            step = 0.1
+            results = []
+            for tresh in np.arange (0, 80, step):
+                results.append (compute_performance({'tresh': tresh.copy(), 'residual': res_score.copy(), 'valid_gt': res_gt.copy()}))
+                
 
 
-                #Compute roc,auc and iou scores async
-                tprs = []; fprs = []; ious = [] ;ovrs = []
-                """
-                args = [{'tresh': tresh.copy(), 'residual': res_score.copy(), 'valid_gt': res_gt.copy()} for tresh in np.arange (0.1, 0.3, step)] 
-                with Pool(processes=2) as pool:  # multiprocessing.cpu_count()
-                    results = pool.map(compute_performance, args, chunksize=1)
-                """
+            #Compute roc,auc and iou scores async
+            tprs = []; fprs = []; ious = [] ;ovrs = []
+            """
+            args = [{'tresh': tresh.copy(), 'residual': res_score.copy(), 'valid_gt': res_gt.copy()} for tresh in np.arange (0.1, 0.3, step)] 
+            with Pool(processes=2) as pool:  # multiprocessing.cpu_count()
+                results = pool.map(compute_performance, args, chunksize=1)
+            """
 
-                for result in results:
-                    tpr = result['tpr']; fpr = result['fpr']; iou = result['iou']; ovr = result['ovr']
-                    #print (fpr, tpr, iou, ovr)
-                    if (fpr <= 0.3):
-                        #print (tpr, fpr, iou)
-                        tprs.append(tpr); fprs.append(fpr); ious.append(iou); ovrs.append(ovr)
+            for result in results:
+                tpr = result['tpr']; fpr = result['fpr']; iou = result['iou']; ovr = result['ovr']
+                #print (fpr, tpr, iou, ovr)
+                if (fpr <= 0.3):
+                    #print (tpr, fpr, iou)
+                    tprs.append(tpr); fprs.append(fpr); ious.append(iou); ovrs.append(ovr)
 
-                if (len(fprs) > 0):
-                    tprs = np.array(tprs); fprs = np.array(fprs); ious = np.array(ious); ovrs = np.array(ovrs)
-                    au_roc = (-1 * integrate.trapz(tprs, fprs))/(np.max(fprs)*np.max(tprs))
-                    #au_roc = (-1 * integrate.trapz(tprs, fprs))/(np.max(fprs))
-                    #au_iou = (-1 * integrate.trapz(ious, fprs))/(np.max(fprs)*np.max(ious))
-                    au_iou = (-1 * integrate.trapz(ious, fprs))/(np.max(fprs))
-                    au_pro = (-1 * integrate.trapz(ovrs, fprs))/(np.max(fprs)*np.max(ovrs))
-                    #au_pro = (-1 * integrate.trapz(ovrs, fprs))/(np.max(fprs))
-                else:
-                    au_iou = 0; au_roc=0; au_pro=0
+            if (len(fprs) > 0):
+                tprs = np.array(tprs); fprs = np.array(fprs); ious = np.array(ious); ovrs = np.array(ovrs)
+                au_roc = (-1 * integrate.trapz(tprs, fprs))/(np.max(fprs)*np.max(tprs))
+                #au_roc = (-1 * integrate.trapz(tprs, fprs))/(np.max(fprs))
+                #au_iou = (-1 * integrate.trapz(ious, fprs))/(np.max(fprs)*np.max(ious))
+                au_iou = (-1 * integrate.trapz(ious, fprs))/(np.max(fprs))
+                au_pro = (-1 * integrate.trapz(ovrs, fprs))/(np.max(fprs)*np.max(ovrs))
+                #au_pro = (-1 * integrate.trapz(ovrs, fprs))/(np.max(fprs))
+            else:
+                au_iou = 0; au_roc=0; au_pro=0
 
-                print ("COUNT FPR: ", len(fprs))
-                #print ("MAX FPR: ", np.max(fprs))
-                print ("Area under ROC:", au_roc)
-                print ("Area under IOU:", au_iou)  
-                print ("Area under PRO:", au_pro) 
+            print ("COUNT FPR: ", len(fprs))
+            #print ("MAX FPR: ", np.max(fprs))
+            print ("Area under ROC:", au_roc)
+            print ("Area under IOU:", au_iou)  
+            print ("Area under PRO:", au_pro) 
 
-                avg_au_roc += au_roc
-                avg_au_iou += au_iou
-                avg_au_pro += au_pro
+            avg_au_roc += au_roc
+            avg_au_iou += au_iou
+            avg_au_pro += au_pro
     
     print ("MEAN Area under ROC:", avg_au_roc/len(args.test_size))
     print ("MEAN Area under IOU:", avg_au_iou/len(args.test_size))
