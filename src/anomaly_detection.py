@@ -167,7 +167,7 @@ def detect_anomaly(args):
                                    num_workers=args.num_workers)
     import os
     import pickle
-    param_file = os.path.join('..','model',{args.dataset},f'params_{args.patch_size}_{args.image_size}')
+    param_file = f'../model/{args.dataset}/params_{args.patch_size}_{args.image_size}'
     if (os.path.isfile(param_file)):
         with open(param_file, 'rb') as f:
             params = pickle.load(f)
