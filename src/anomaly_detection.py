@@ -10,41 +10,26 @@ from torchvision import transforms
 from torch.utils.data.dataloader import DataLoader
 from utils import increment_mean_and_var, load_model
 from sklearn.metrics import roc_curve, auc
-import pickle
-from Metrics import get_roc, get_ovr, get_iou
 from scipy import integrate 
-from multiprocessing import Pool
-
-path = 'D:\Projects\student-teacher-anomaly-detection-master'
-
-
-#eval:
-    #recalibrate for 512
-    #retest on 512 on grayscale
-
-#train
-    #retrain all on grayscale
-
+from Metrics import get_ovr, visualize_results, preprocess_data, bg_mask, batch_evaluation, get_performance, get_roc, image_evaluation, get_iou
 
 def parse_arguments():
     parser = ArgumentParser()
 
     # program arguments
-    parser.add_argument('--dataset', type=str, default='carpet', help="Dataset to infer on (in data folder)")
+    parser.add_argument('--dataset', type=str, default='grid', help="Dataset to infer on (in data folder)")
     parser.add_argument('--test_size', type=int, default=20, help="Number of batch for the test set")
     parser.add_argument('--n_students', type=int, default=3, help="Number of students network to use")
-    parser.add_argument('--patch_size', type=int, default=65, choices=[17, 33, 65])
-    parser.add_argument('--image_size', type=int, default=512)
-    parser.add_argument('--visualize', type=bool, default=False, help="Display anomaly map batch per batch")
+    parser.add_argument('--patch_size', type=int, default=33, choices=[17, 33, 65])
+    parser.add_argument('--image_size', type=int, default=1024)
+    parser.add_argument('--visualize', type=bool, default=True, help="Display anomaly map batch per batch")
 
     # trainer arguments
-    #parser.add_argument('--gpus', type=int, default=(1 if torch.cuda.is_available() else 0))
-    parser.add_argument('--gpus', type=int, default=0)
+    parser.add_argument('--gpus', type=int, default=(1 if torch.cuda.is_available() else 0))
     parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--num_workers', type=int, default=4)
 
     args = parser.parse_args()
-
     return args
 
 
@@ -103,14 +88,14 @@ def calibrate(teacher, students, dataloader, device):
 
 
 @torch.no_grad()
-def get_score_map(inputs, teacher, students, params, device):
-    t_out = (teacher.fdfe(inputs) - params['teacher']['mu'].to(device)) / torch.sqrt(params['teacher']['var'].to(device))
+def get_score_map(inputs, teacher, students, params):
+    t_out = (teacher.fdfe(inputs) - params['teacher']['mu']) / torch.sqrt(params['teacher']['var'])
     s_out = torch.stack([student.fdfe(inputs) for student in students], dim=1)
 
     s_err = get_error_map(s_out, t_out)
     s_var = get_variance_map(s_out)
-    score_map = (s_err - params['students']['err']['mu'].to(device)) / torch.sqrt(params['students']['err']['var'].to(device))\
-                    + (s_var - params['students']['var']['mu'].to(device)) / torch.sqrt(params['students']['var']['var'].to(device))
+    score_map = (s_err - params['students']['err']['mu']) / torch.sqrt(params['students']['err']['var'])\
+                    + (s_var - params['students']['var']['mu']) / torch.sqrt(params['students']['var']['var'])
     
     return score_map
 
@@ -136,7 +121,7 @@ def visualize(img, gt, score_map, max_score):
     plt.show(block=True)
 
 
-def detect_anomaly(args, skip_train = False):
+def detect_anomaly(args):
     # Choosing device 
     device = torch.device("cuda:0" if args.gpus else "cpu")
     print(f'Device used: {device}')
@@ -146,7 +131,7 @@ def detect_anomaly(args, skip_train = False):
     teacher.eval().to(device)
 
     # Load teacher model
-    load_model(teacher, path + f'\\model\\{args.dataset}\\teacher_{args.patch_size}_net.pt')
+    load_model(teacher, f'../model/{args.dataset}/teacher_{args.patch_size}_net.pt')
 
     # Students networks
     students = [AnomalyNet.create((args.patch_size, args.patch_size)) for _ in range(args.n_students)]
@@ -154,35 +139,28 @@ def detect_anomaly(args, skip_train = False):
 
     # Loading students models
     for i in range(args.n_students):
-        model_name = path + f'\\model\\{args.dataset}\\student_{args.patch_size}_net_{i}.pt'
+        model_name = f'../model/{args.dataset}/student_{args.patch_size}_net_{i}.pt'
         load_model(students[i], model_name)
 
-    if skip_train:
-         with open(path + '\\model\\' + args.dataset + '\\saved_dictionary.pkl', 'rb') as f:
-            params = pickle.load(f)
+    # calibration on anomaly-free dataset
+    calib_dataset = AnomalyDataset(root_dir=f'../data/{args.dataset}',
+                                    transform=transforms.Compose([
+                                        transforms.Resize((args.image_size, args.image_size)),
+                                        transforms.ToTensor(),
+                                        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]),
+                                    type='train',
+                                    label=0)
 
-    else:
-        # calibration on anomaly-free dataset
-        calib_dataset = AnomalyDataset(root_dir= path + f'\\data\\{args.dataset}',
-                                        transform=transforms.Compose([
-                                            transforms.Resize((args.image_size, args.image_size)),
-                                            transforms.ToTensor(),
-                                            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]),
-                                        type='train',
-                                        label=0)
+    calib_dataloader = DataLoader(calib_dataset, 
+                                   batch_size=args.batch_size, 
+                                   shuffle=False, 
+                                   num_workers=args.num_workers)
+    
+    params = calibrate(teacher, students, calib_dataloader, device)
 
-        calib_dataloader = DataLoader(calib_dataset, 
-                                    batch_size=args.batch_size, 
-                                    shuffle=False, 
-                                    num_workers=args.num_workers)
-        
-        params = calibrate(teacher, students, calib_dataloader, device)
-
-        with open(path + '\\model\\' + args.dataset + '\\saved_dictionary.pkl', 'wb') as f:
-            pickle.dump(params, f)
 
     # Load testing data
-    test_dataset = AnomalyDataset(root_dir= path +  f'\\data\\{args.dataset}',
+    test_dataset = AnomalyDataset(root_dir=f'../data/{args.dataset}',
                                   transform=transforms.Compose([
                                     transforms.Resize((args.image_size, args.image_size)),
                                     transforms.ToTensor(),
@@ -203,79 +181,84 @@ def detect_anomaly(args, skip_train = False):
     y_true = np.array([])
     test_iter = iter(test_dataloader)
 
+    avg_au_roc = 0; avg_au_iou = 0; avg_au_pro = 0
     for i in range(args.test_size):
         batch = next(test_iter)
         inputs = batch['image'].to(device)
         gt = batch['gt'].cpu()
 
-        score_map = get_score_map(inputs, teacher, students, params, device).cpu()
+        score_map = get_score_map(inputs, teacher, students, params).cpu()
         y_score = np.concatenate((y_score, rearrange(score_map, 'b h w -> (b h w)').numpy()))
         y_true = np.concatenate((y_true, rearrange(gt, 'b c h w -> (b c h w)').numpy()))
 
-        #vis = np.reshape(y_score, (args.image_size, args.image_size))
-        #plt.imshow(vis)
-        #plt.show()
+        if args.visualize:
+            unorm = transforms.Normalize((-1, -1, -1), (2, 2, 2)) # get back to original image
+            max_score = (params['students']['err']['max'] - params['students']['err']['mu']) / torch.sqrt(params['students']['err']['var'])\
+                + (params['students']['var']['max'] - params['students']['var']['mu']) / torch.sqrt(params['students']['var']['var']).item()
+            img_in = rearrange(unorm(inputs).cpu(), 'b c h w -> b h w c')
+            gt_in = rearrange(gt, 'b c h w -> b h w c')
 
-        #if args.visualize:
-        unorm = transforms.Normalize((-1, -1, -1), (2, 2, 2)) # get back to original image
-        max_score = (params['students']['err']['max'] - params['students']['err']['mu']) / torch.sqrt(params['students']['err']['var'])\
-            + (params['students']['var']['max'] - params['students']['var']['mu']) / torch.sqrt(params['students']['var']['var']).item()
-        img_in = rearrange(unorm(inputs).cpu(), 'b c h w -> b h w c')
-        gt_in = rearrange(gt, 'b c h w -> b h w c')
+            for b in range(args.batch_size):
+                visualize(img_in[b, :, :, :].squeeze(), 
+                          gt_in[b, :, :, :].squeeze(), 
+                          score_map[b, :, :].squeeze(), 
+                          max_score)
 
-        for b in range(args.batch_size):
-            visualize(img_in[b, :, :, :].squeeze(), 
-                        gt_in[b, :, :, :].squeeze(), 
-                        score_map[b, :, :].squeeze(), 
-                        max_score)
+                res_score = score_map[b, :, :].squeeze().numpy()
+                res_gt = gt_in[b, :, :].squeeze().numpy()
+                res_gt[res_gt > 0] = 1
 
-            res_score = score_map[b, :, :].squeeze().numpy()
-            res_gt = gt_in[b, :, :].squeeze().numpy()
-            res_gt[res_gt > 0] = 1
+                #plt.imshow(res_score)
+                #plt.show()
+                #plt.imshow(res_gt)
+                #plt.show()
 
-            #plt.imshow(res_score)
-            #plt.show()
-            #plt.imshow(res_gt)
-            #plt.show()
-
-            step = 0.1
-            results = []
-            for tresh in np.arange (0, 80, step):
-                results.append (compute_performance({'tresh': tresh.copy(), 'residual': res_score.copy(), 'valid_gt': res_gt.copy()}))
-                
+                step = 0.1
+                results = []
+                for tresh in np.arange (0, 80, step):
+                    results.append (compute_performance({'tresh': tresh.copy(), 'residual': res_score.copy(), 'valid_gt': res_gt.copy()}))
+                    
 
 
-            #Compute roc,auc and iou scores async
-            tprs = []; fprs = []; ious = [] ;ovrs = []
-            """
-            args = [{'tresh': tresh.copy(), 'residual': res_score.copy(), 'valid_gt': res_gt.copy()} for tresh in np.arange (0.1, 0.3, step)] 
-            with Pool(processes=2) as pool:  # multiprocessing.cpu_count()
-                results = pool.map(compute_performance, args, chunksize=1)
-            """
+                #Compute roc,auc and iou scores async
+                tprs = []; fprs = []; ious = [] ;ovrs = []
+                """
+                args = [{'tresh': tresh.copy(), 'residual': res_score.copy(), 'valid_gt': res_gt.copy()} for tresh in np.arange (0.1, 0.3, step)] 
+                with Pool(processes=2) as pool:  # multiprocessing.cpu_count()
+                    results = pool.map(compute_performance, args, chunksize=1)
+                """
 
-            for result in results:
-                tpr = result['tpr']; fpr = result['fpr']; iou = result['iou']; ovr = result['ovr']
-                #print (fpr, tpr, iou, ovr)
-                if (fpr <= 0.3):
-                    #print (tpr, fpr, iou)
-                    tprs.append(tpr); fprs.append(fpr); ious.append(iou); ovrs.append(ovr)
+                for result in results:
+                    tpr = result['tpr']; fpr = result['fpr']; iou = result['iou']; ovr = result['ovr']
+                    #print (fpr, tpr, iou, ovr)
+                    if (fpr <= 0.3):
+                        #print (tpr, fpr, iou)
+                        tprs.append(tpr); fprs.append(fpr); ious.append(iou); ovrs.append(ovr)
 
-            if (len(fprs) > 0):
-                tprs = np.array(tprs); fprs = np.array(fprs); ious = np.array(ious); ovrs = np.array(ovrs)
-                au_roc = (-1 * integrate.trapz(tprs, fprs))/(np.max(fprs)*np.max(tprs))
-                #au_roc = (-1 * integrate.trapz(tprs, fprs))/(np.max(fprs))
-                #au_iou = (-1 * integrate.trapz(ious, fprs))/(np.max(fprs)*np.max(ious))
-                au_iou = (-1 * integrate.trapz(ious, fprs))/(np.max(fprs))
-                au_pro = (-1 * integrate.trapz(ovrs, fprs))/(np.max(fprs)*np.max(ovrs))
-                #au_pro = (-1 * integrate.trapz(ovrs, fprs))/(np.max(fprs))
-            else:
-                au_iou = 0; au_roc=0; au_pro=0
+                if (len(fprs) > 0):
+                    tprs = np.array(tprs); fprs = np.array(fprs); ious = np.array(ious); ovrs = np.array(ovrs)
+                    au_roc = (-1 * integrate.trapz(tprs, fprs))/(np.max(fprs)*np.max(tprs))
+                    #au_roc = (-1 * integrate.trapz(tprs, fprs))/(np.max(fprs))
+                    #au_iou = (-1 * integrate.trapz(ious, fprs))/(np.max(fprs)*np.max(ious))
+                    au_iou = (-1 * integrate.trapz(ious, fprs))/(np.max(fprs))
+                    au_pro = (-1 * integrate.trapz(ovrs, fprs))/(np.max(fprs)*np.max(ovrs))
+                    #au_pro = (-1 * integrate.trapz(ovrs, fprs))/(np.max(fprs))
+                else:
+                    au_iou = 0; au_roc=0; au_pro=0
 
-            print ("COUNT FPR: ", len(fprs))
-            #print ("MAX FPR: ", np.max(fprs))
-            print ("Area under ROC:", au_roc)
-            print ("Area under IOU:", au_iou)  
-            print ("Area under PRO:", au_pro) 
+                print ("COUNT FPR: ", len(fprs))
+                #print ("MAX FPR: ", np.max(fprs))
+                print ("Area under ROC:", au_roc)
+                print ("Area under IOU:", au_iou)  
+                print ("Area under PRO:", au_pro) 
+
+                avg_au_roc += au_roc
+                avg_au_iou += au_iou
+                avg_au_pro += au_pro
+    
+    print ("MEAN Area under ROC:", avg_au_roc/len(args.test_size))
+    print ("MEAN Area under IOU:", avg_au_iou/len(args.test_size))
+    print ("MEAN Area under PRO:", avg_au_pro/len(args.test_size))
         
 
 
