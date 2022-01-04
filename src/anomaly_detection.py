@@ -282,9 +282,10 @@ def detect_anomaly(args):
             print ("Area under IOU:", au_iou)  
             print ("Area under PRO:", au_pro) 
 
-            avg_au_roc += au_roc
-            avg_au_iou += au_iou
-            avg_au_pro += au_pro
+            if (au_roc is not np.NaN and au_iou is not np.NaN and au_pro is not np.NaN):
+                avg_au_roc += au_roc
+                avg_au_iou += au_iou
+                avg_au_pro += au_pro
     
     print ("MEAN Area under ROC:", avg_au_roc/(args.test_size))
     print ("MEAN Area under IOU:", avg_au_iou/(args.test_size))
