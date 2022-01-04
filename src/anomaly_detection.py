@@ -26,6 +26,7 @@ def parse_arguments():
 
     # trainer arguments
     parser.add_argument('--gpus', type=int, default=(1 if torch.cuda.is_available() else 0))
+    parser.add_argument('--cuda', type=int, default=1)
     parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--num_workers', type=int, default=4)
 
@@ -123,7 +124,7 @@ def visualize(img, gt, score_map, max_score):
 
 def detect_anomaly(args):
     # Choosing device 
-    device = torch.device("cuda:1" if args.gpus else "cpu")
+    device = torch.device(f"cuda:{args.cuda}" if args.gpus else "cpu")
     print(f'Device used: {device}')
 
     # Teacher network

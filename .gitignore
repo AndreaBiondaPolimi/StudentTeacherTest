@@ -1,3 +1,4 @@
 data/*
 logs/*
+data_unused/*
 *.pyc
